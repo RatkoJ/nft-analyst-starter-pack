@@ -80,7 +80,7 @@ def export_data(contract_address, alchemy_api_key, project_name, only_metadata):
     # sales_csv = "sales_" + contract_address + ".csv"
     # metadata_csv = "metadata_" + contract_address + ".csv"
     # transfers_csv = "transfers_" + contract_address + ".csv"
-    sales_csv = opj("export", +"sales_" + project_name + ".csv")
+    sales_csv = opj("export", "sales_" + project_name + ".csv")
     metadata_csv = opj("export", "metadata_" + project_name + ".csv")
     transfers_csv = opj("export", "transfers_" + project_name + ".csv")
 
