@@ -141,13 +141,16 @@ def get_metadata_for_collection(api_key, contract_address, output):
                 nft_list = j["nfts"]
                 for nft in nft_list:
                     last_nft_dict = nft
-                    attributes_raw = nft["metadata"]["attributes"]
-                    attributes_df = pd.DataFrame(attributes_raw)
-                    attributes_df["asset_id"] = int(nft["id"]["tokenId"], 16)
-                    attributes_df = attributes_df[["value", "trait_type", "asset_id"]]
-                    raw_attributes = raw_attributes.append(
-                        attributes_df, ignore_index=True
-                    )
+                    try:
+                        attributes_raw = nft["metadata"]["attributes"]
+                        attributes_df = pd.DataFrame(attributes_raw)
+                        attributes_df["asset_id"] = int(nft["id"]["tokenId"], 16)
+                        attributes_df = attributes_df[["value", "trait_type", "asset_id"]]
+                        raw_attributes = raw_attributes.append(
+                            attributes_df, ignore_index=True
+                        )
+                    except:
+                        continue
                     num_downloaded += 1
                     print("Downloaded: ", num_downloaded, end='\r')
                 try:
@@ -157,7 +160,7 @@ def get_metadata_for_collection(api_key, contract_address, output):
             except KeyError as e:
                 if i < retries - 1:
                     print("Alchemy request failed. Retrying request...", e)
-                    print("Last NFT before error: ", last_nft_dict)    
+                    # print("Last NFT before error: ", last_nft_dict)
                     sleep(5)
                     continue
                 else:
