@@ -5,7 +5,7 @@ if sys.version_info[0] == 3 and sys.version_info[1] >= 10:
     raise Exception("Python >=3.10 is not supported at this time.")
 
 import asyncio
-import os
+import os, path
 import sys
 import tempfile
 import warnings
@@ -30,6 +30,7 @@ from utils.check_contract_support import check_contract_support
 from utils.extract_unique_column_value import extract_unique_column_value
 from utils.find_deployment_block_for_contract import find_deployment_block_for_contract
 
+opj = os.path.join
 
 # Set click CLI parameters
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))
@@ -47,7 +48,22 @@ from utils.find_deployment_block_for_contract import find_deployment_block_for_c
     type=str,
     help="The contract address of the desired NFT collection.",
 )
-def export_data(contract_address, alchemy_api_key):
+@click.option(
+    "-n",
+    "--project-name",
+    required=True,
+    type=str,
+    help="The project name of the desired NFT collection.",
+)
+@click.option(
+    "-om",
+    "--only-metadata",
+    is_flag=True,
+    required=False,
+    type=str,
+    help="Download only the metadata",
+)
+def export_data(contract_address, alchemy_api_key, project_name, only_metadata):
 
     # Check if contract address is supported by Alchemy
     check_contract_support(
@@ -60,9 +76,12 @@ def export_data(contract_address, alchemy_api_key):
     # Assign file paths (persisting files only)
     date_block_mapping_csv = "./raw-data/date_block_mapping.csv"
     eth_prices_csv = "./raw-data/eth_prices.csv"
-    sales_csv = "sales_" + contract_address + ".csv"
-    metadata_csv = "metadata_" + contract_address + ".csv"
-    transfers_csv = "transfers_" + contract_address + ".csv"
+    # sales_csv = "sales_" + contract_address + ".csv"
+    # metadata_csv = "metadata_" + contract_address + ".csv"
+    # transfers_csv = "transfers_" + contract_address + ".csv"
+    sales_csv = opj("export", +"sales_" + project_name + ".csv")
+    metadata_csv = opj("export", "metadata_" + project_name + ".csv")
+    transfers_csv = opj("export", "transfers_" + project_name + ".csv")
 
     # Set provider
     provider_uri = "https://eth-mainnet.alchemyapi.io/v2/" + alchemy_api_key
@@ -92,65 +111,68 @@ def export_data(contract_address, alchemy_api_key):
         delete=False
     ) as raw_attributes_csv:
 
-        # Export token transfers
-        export_token_transfers(
-            start_block=start_block,
-            end_block=end_block,
-            batch_size=ethereum_etl_batch_size,
-            provider_uri=provider_uri,
-            max_workers=ethereum_etl_max_workers,
-            tokens=contract_address,
-            output=transfers_csv,
-        )
+        if not only_metadata:
+            # Export token transfers
+            export_token_transfers(
+                start_block=start_block,
+                end_block=end_block,
+                batch_size=ethereum_etl_batch_size,
+                provider_uri=provider_uri,
+                max_workers=ethereum_etl_max_workers,
+                tokens=contract_address,
+                output=transfers_csv,
+            )
 
-        # Create staging files
-        extract_unique_column_value(
-            input_filename=transfers_csv,
-            output_filename=transaction_hashes_txt.name,
-            column="transaction_hash",
-        )
+            # Create staging files
+            extract_unique_column_value(
+                input_filename=transfers_csv,
+                output_filename=transaction_hashes_txt.name,
+                column="transaction_hash",
+            )
 
-        extract_unique_column_value(
-            input_filename=transfers_csv,
-            output_filename=token_ids_txt.name,
-            column="value",
-        )
+            extract_unique_column_value(
+                input_filename=transfers_csv,
+                output_filename=token_ids_txt.name,
+                column="value",
+            )
 
-        # Export logs
-        export_logs(
-            start_block=start_block,
-            end_block=end_block,
-            batch_size=ethereum_etl_batch_size,
-            provider_uri=provider_uri,
-            max_workers=ethereum_etl_max_workers,
-            tx_hashes_filename=transaction_hashes_txt.name,
-            output=logs_csv.name,
-        )
+            # Export logs
+            export_logs(
+                start_block=start_block,
+                end_block=end_block,
+                batch_size=ethereum_etl_batch_size,
+                provider_uri=provider_uri,
+                max_workers=ethereum_etl_max_workers,
+                tx_hashes_filename=transaction_hashes_txt.name,
+                output=logs_csv.name,
+            )
 
-        # Update date block mapping
-        update_block_to_date_mapping(
-            filename=date_block_mapping_csv, eth_service=eth_service
-        )
+            # Update date block mapping
+            update_block_to_date_mapping(
+                filename=date_block_mapping_csv, eth_service=eth_service
+            )
 
-        # Update ETH prices
-        update_eth_prices(filename=eth_prices_csv)
+            # Update ETH prices
+            update_eth_prices(filename=eth_prices_csv)
 
-        # Generate sales output
-        generate_sales_output(
-            transfers_file=transfers_csv,
-            logs_file=logs_csv.name,
-            date_block_mapping_file=date_block_mapping_csv,
-            eth_prices_file=eth_prices_csv,
-            output=sales_csv,
-        )
+            # Generate sales output
+            generate_sales_output(
+                transfers_file=transfers_csv,
+                logs_file=logs_csv.name,
+                date_block_mapping_file=date_block_mapping_csv,
+                eth_prices_file=eth_prices_csv,
+                output=sales_csv,
+            )
 
-        # Generate transfers output
-        generate_transfers_output(
-            transfers_file=transfers_csv,
-            date_block_mapping_file=date_block_mapping_csv,
-            output=transfers_csv,
-        )
-
+            # Generate transfers output
+            generate_transfers_output(
+                transfers_file=transfers_csv,
+                date_block_mapping_file=date_block_mapping_csv,
+                output=transfers_csv,
+            )
+        else:
+            print("Downloading only metadata")
+            
         # Fetch metadata
         get_metadata_for_collection(
             api_key=alchemy_api_key,

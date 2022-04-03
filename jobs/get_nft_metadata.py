@@ -110,6 +110,7 @@ def get_metadata_for_collection(api_key, contract_address, output):
     raw_attributes = pd.DataFrame(columns=["value", "trait_type", "asset_id"])
     start_token = None
     process_active = True
+    num_downloaded = 0
 
     # Loop through collection using pagination tokens until complete
     while process_active:
@@ -130,7 +131,8 @@ def get_metadata_for_collection(api_key, contract_address, output):
         }
 
         # Sometimes requests can randomly fail. Retry 3 times before timing out.
-        retries = 3
+        retries = 5
+        last_nft_dict = {}
         for i in range(retries):
             try:
                 r = requests.get(alchemy_url, headers=headers)
@@ -138,6 +140,7 @@ def get_metadata_for_collection(api_key, contract_address, output):
 
                 nft_list = j["nfts"]
                 for nft in nft_list:
+                    last_nft_dict = nft
                     attributes_raw = nft["metadata"]["attributes"]
                     attributes_df = pd.DataFrame(attributes_raw)
                     attributes_df["asset_id"] = int(nft["id"]["tokenId"], 16)
@@ -145,18 +148,25 @@ def get_metadata_for_collection(api_key, contract_address, output):
                     raw_attributes = raw_attributes.append(
                         attributes_df, ignore_index=True
                     )
-
+                    num_downloaded += 1
+                    print("Downloaded: ", num_downloaded, end='\r')
                 try:
                     start_token = int(j["nextToken"], 16)
                 except:
                     process_active = False
             except KeyError as e:
                 if i < retries - 1:
-                    print("Alchemy request failed. Retrying request...")
+                    print("Alchemy request failed. Retrying request...", e)
+                    print("Last NFT before error: ", last_nft_dict)    
                     sleep(5)
                     continue
                 else:
                     raise
+            except Exception as e:
+                print("OTHER ERROR: ", e)
+                print("Last NFT before error: ", last_nft_dict)
+                sleep(2)
+                continue
             break
 
     # Output attributes data to CSV file
